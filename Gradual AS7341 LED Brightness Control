@@ -1,0 +1,39 @@
+# Gradual AS7341 LED Brightness Control
+# Joe Pardue 1/7/25
+
+
+import time
+import board
+import adafruit_as7341
+
+# Initialize I2C
+i2c = board.STEMMA_I2C()  # Use STEMMA_I2C for ease of use with Adafruit boards
+
+# Initialize the AS7341 sensor
+sensor = adafruit_as7341.AS7341(i2c)
+
+# Function to set LED brightness
+def set_led_brightness(current):
+    """Set the AS7341 LED brightness."""
+    sensor.led_current = current  # Set LED current (0 to 60 mA)
+    sensor.led = current > 0      # Turn LED ON if current > 0, otherwise OFF
+
+# Main loop to change brightness smoothly
+try:
+    while True:
+        print("Increasing brightness...")
+        # Gradually increase brightness
+        for current in range(0, 61):  # Increment in smaller steps (1 mA per step)
+            set_led_brightness(current)
+            time.sleep(0.02)  # Shorter delay for smoother transition (20 ms per step)
+
+        print("Decreasing brightness...")
+        # Gradually decrease brightness
+        for current in range(60, -1, -1):  # Decrement in smaller steps
+            set_led_brightness(current)
+            time.sleep(0.02)  # Shorter delay for smoother transition
+
+except KeyboardInterrupt:
+    print("Program stopped.")
+    set_led_brightness(0)  # Ensure LED is OFF before exiting
+
