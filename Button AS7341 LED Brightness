@@ -1,0 +1,109 @@
+# Button AS7341 LED Brightness
+# Joe Pardue 1/7/25
+
+import board
+import digitalio
+import time
+from adafruit_ssd1306 import SSD1306_I2C
+import adafruit_as7341
+
+# Define GPIO pins for buttons
+BUTTON_PINS = [
+    board.GP6,  # Button 1
+    board.GP7,  # Button 2
+    board.GP8,  # Button 3
+    board.GP9,  # Button 4
+    board.GP10, # Button 5
+    board.GP11, # Button 6
+    board.GP12, # Button 7
+    board.GP13, # Button 8
+]
+LED_PIN = board.LED  # Onboard LED
+
+# Set up buttons as inputs with pull-down resistors
+buttons = []
+for pin in BUTTON_PINS:
+    button = digitalio.DigitalInOut(pin)
+    button.direction = digitalio.Direction.INPUT
+    button.pull = digitalio.Pull.DOWN
+    buttons.append(button)
+
+# Set up the onboard LED as an output
+led = digitalio.DigitalInOut(LED_PIN)
+led.direction = digitalio.Direction.OUTPUT
+
+# Initialize I2C and OLED display
+i2c = board.STEMMA_I2C()  # Use the STEMMA I2C interface
+display = SSD1306_I2C(128, 64, i2c, addr=0x3D)
+
+# Initialize the AS7341 sensor
+sensor = adafruit_as7341.AS7341(i2c)
+
+# Clear the display initially
+display.fill(0)
+display.show()
+
+# Current LED brightness (0 to 60 mA)
+current_brightness = 0
+MAX_BRIGHTNESS = 60
+
+# Direction flag: True for increasing, False for decreasing
+increasing = True
+
+# Function to set the AS7341 LED brightness
+def set_led_brightness(brightness):
+    """Set the AS7341 LED brightness."""
+    sensor.led_current = brightness  # Set LED current (0 to 60 mA)
+    sensor.led = brightness > 0      # Turn LED ON if brightness > 0, OFF otherwise
+
+# Function to update the OLED display with the current brightness
+def update_display(brightness):
+    """Update the OLED display with the current LED brightness."""
+    display.fill(0)  # Clear the display
+    display.text(f"LED Brightness:", 0, 0, 1)
+    display.text(f"{brightness} mA", 0, 16, 1)
+    display.show()
+
+# Main loop
+try:
+    while True:
+        # Read all button states
+        button_states = [button.value for button in buttons]
+
+        # Adjust brightness based on button presses
+        for i, pressed in enumerate(button_states):
+            if pressed:  # Button pressed
+                steps = i + 1  # Button index corresponds to the number of steps
+
+                # Increase or decrease brightness based on the current direction
+                if increasing:
+                    current_brightness += steps
+                    if current_brightness >= MAX_BRIGHTNESS:
+                        current_brightness = MAX_BRIGHTNESS
+                        increasing = False  # Switch to decreasing mode
+                else:
+                    current_brightness -= steps
+                    if current_brightness <= 0:
+                        current_brightness = 0
+                        increasing = True  # Switch to increasing mode
+
+                # Update LED brightness and OLED display
+                set_led_brightness(current_brightness)
+                update_display(current_brightness)
+
+                # Debounce delay
+                time.sleep(0.2)
+                break  # Process one button press at a time
+
+        # Control onboard LED with button 6 state (index 5 in the list)
+        led.value = button_states[5]
+
+        # Minimal delay to reduce CPU load
+        time.sleep(0.01)
+
+except KeyboardInterrupt:
+    print("Program stopped.")
+    set_led_brightness(0)  # Turn off LED before exiting
+    display.fill(0)  # Clear display on exit
+    display.show()
+
