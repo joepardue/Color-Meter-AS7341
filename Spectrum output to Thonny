@@ -1,0 +1,79 @@
+# Spectrum output to Thonny
+# Joe Pardue 1/10/24
+
+import time
+import board
+import busio
+from adafruit_as7341 import AS7341
+
+# Initialize I2C using board.STEMMA_I2C()
+i2c = board.STEMMA_I2C()
+
+# Initialize the AS7341 sensor
+sensor = AS7341(i2c)
+
+# Ensure the sensor is in the correct mode for reading spectral data
+sensor.led_current = 12  # Set LED current if the built-in LED is used (optional)
+
+# Define the color channels in order from red to blue
+color_names = [
+    "Red (680nm)",
+    "Orange-Red (630nm)",
+    "Yellow (590nm)",
+    "Green (555nm)",
+    "Blue-Green (515nm)",
+    "Blue (480nm)",
+    "Violet (445nm)",
+    "Deep Violet (415nm)"
+]
+
+# Custom left-justify function
+def left_justify(text, width):
+    if len(text) >= width:
+        return text
+    return text + ' ' * (width - len(text))
+
+# Set formatting parameters
+name_width = 20  # Fixed width for color names
+bar_width = 50   # Width of the bar representing the intensity
+
+# Main loop
+print("Reading AS7341 8 color channels...")
+while True:
+    try:
+        # Read the 8 spectral channel values
+        color_values = [
+            sensor.channel_680nm,
+            sensor.channel_630nm,
+            sensor.channel_590nm,
+            sensor.channel_555nm,
+            sensor.channel_515nm,
+            sensor.channel_480nm,
+            sensor.channel_445nm,
+            sensor.channel_415nm
+        ]
+
+        # Find the maximum value for scaling the output
+        max_value = max(color_values)
+
+        # Print the color values with proportional bars
+        print("\nSpectral Readings:")
+        for name, value in zip(color_names, color_values):
+            # Use custom left-justify function for consistent formatting
+            name_str = left_justify(name, name_width)
+            # Calculate the number of asterisks based on the intensity
+            if max_value > 0:
+                num_asterisks = int((value / max_value) * bar_width)
+            else:
+                num_asterisks = 0
+            # Create the bar with asterisks and dots
+            bar = '*' * num_asterisks + '.' * (bar_width - num_asterisks)
+            # Print the formatted line
+            print(f"{name_str}: {bar} ({value})")
+
+    except AttributeError as e:
+        print(f"Error reading sensor: {e}")
+        break
+
+    # Wait before the next reading
+    time.sleep(1)
