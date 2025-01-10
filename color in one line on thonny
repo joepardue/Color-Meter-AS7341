@@ -1,0 +1,34 @@
+import time
+import board
+import busio
+from adafruit_as7341 import AS7341
+
+# Initialize I2C using board.STEMMA_I2C()
+i2c = board.STEMMA_I2C()
+
+# Initialize the AS7341 sensor
+sensor = AS7341(i2c)
+
+# Ensure the sensor is in the correct mode for reading spectral data
+sensor.led_current = 12  # Set LED current if the built-in LED is used (optional)
+
+# Main loop
+print("Reading AS7341 8 color channels...")
+while True:
+    # Read and print the 8 spectral channel values
+    color_values = [
+        sensor.channel_415nm,
+        sensor.channel_445nm,
+        sensor.channel_480nm,
+        sensor.channel_515nm,
+        sensor.channel_555nm,
+        sensor.channel_590nm,
+        sensor.channel_630nm,
+        sensor.channel_680nm
+    ]
+
+    # Print the values as a list in Thonny
+    print("Color Values:", color_values)
+
+    # Wait before the next reading
+    time.sleep(1)
