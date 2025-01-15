@@ -1,0 +1,69 @@
+# Display AS7341 Readings on OLED
+# Joe Pardue 1/15/25
+
+import time
+import board
+from adafruit_ssd1306 import SSD1306_I2C
+from adafruit_as7341 import AS7341
+
+# Initialize I2C using board.STEMMA_I2C()
+i2c = board.STEMMA_I2C()
+
+# Initialize the AS7341 sensor
+sensor = AS7341(i2c)
+
+# Define the OLED display parameters
+OLED_WIDTH = 128
+OLED_HEIGHT = 64
+
+# Create an SSD1306 I2C instance for the display
+display = SSD1306_I2C(OLED_WIDTH, OLED_HEIGHT, i2c, addr=0x3d)
+
+# Clear the display initially
+display.fill(0)
+display.show()
+
+# Define the color channels in order from red to blue
+color_names = [
+    "Red",
+    "Orange-Red",
+    "Yellow",
+    "Green",
+    "Blue-Green",
+    "Blue",
+    "Violet",
+    "Deep Violet"
+]
+
+# Function to display AS7341 readings
+def display_as7341_readings():
+    display.fill(0)  # Clear display
+
+    # Read the 8 spectral channel values
+    color_values = [
+        sensor.channel_680nm,
+        sensor.channel_630nm,
+        sensor.channel_590nm,
+        sensor.channel_555nm,
+        sensor.channel_515nm,
+        sensor.channel_480nm,
+        sensor.channel_445nm,
+        sensor.channel_415nm
+    ]
+
+    # Display color values
+    y_offset = 0  # Start at the top
+    for name, value in zip(color_names, color_values):
+        display.text(f"{name[:6]}: {value:4}", 0, y_offset, 1)
+        y_offset += 8  # Move to the next line
+
+    display.show()  # Update the display
+
+# Main loop
+while True:
+    try:
+        display_as7341_readings()
+    except Exception as e:
+        print(f"Error: {e}")
+        break
+    time.sleep(1)
