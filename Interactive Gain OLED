@@ -1,0 +1,191 @@
+# Interactive Gain OLED
+# Joe Pardue 1/15/25
+
+import time
+import board
+from adafruit_ssd1306 import SSD1306_I2C
+from adafruit_as7341 import AS7341, Gain
+
+# Initialize I2C using board.STEMMA_I2C()
+i2c = board.STEMMA_I2C()
+
+# Initialize the AS7341 sensor
+sensor = AS7341(i2c)
+
+# Define the OLED display parameters
+OLED_WIDTH = 128
+OLED_HEIGHT = 64
+
+# Create an SSD1306 I2C instance for the display
+display = SSD1306_I2C(OLED_WIDTH, OLED_HEIGHT, i2c, addr=0x3d)
+
+# Clear the display initially
+display.fill(0)
+display.show()
+
+# Acceptable gain values for AS7341 using the Gain class
+ACCEPTABLE_GAINS = {
+    "0.5": Gain.GAIN_0_5X,
+    "1": Gain.GAIN_1X,
+    "2": Gain.GAIN_2X,
+    "4": Gain.GAIN_4X,
+    "8": Gain.GAIN_8X,
+    "15": Gain.GAIN_16X,
+    "32": Gain.GAIN_32X,
+    "64": Gain.GAIN_64X,
+    "128": Gain.GAIN_128X,
+    "256": Gain.GAIN_256X
+}
+
+# Mapping Gain Enum to Human-Readable Values
+GAIN_MAP = {v: k for k, v in ACCEPTABLE_GAINS.items()}
+
+# Define all 8 color channel names
+COLOR_NAMES = [
+    "680nm", "630nm", "590nm", "555nm", "515nm", "480nm", "445nm", "415nm"
+]
+
+# Function to display text on the OLED
+def display_on_oled(text):
+    display.fill(0)  # Clear display
+    lines = text.split("\n")
+    y_offset = 0  # Start at the top
+    for line in lines[:8]:  # Display up to 8 lines of text
+        display.text(line, 0, y_offset, 1)
+        y_offset += 8
+    display.show()  # Update the display
+
+# Function to display all 8 color readings on the OLED
+def display_color_readings(sensor):
+    display.fill(0)  # Clear display
+
+    # Read the 8 spectral channel values
+    color_values = [
+        sensor.channel_680nm,
+        sensor.channel_630nm,
+        sensor.channel_590nm,
+        sensor.channel_555nm,
+        sensor.channel_515nm,
+        sensor.channel_480nm,
+        sensor.channel_445nm,
+        sensor.channel_415nm
+    ]
+
+    # Display color values with names
+    y_offset = 0  # Start at the top
+    for name, value in zip(COLOR_NAMES, color_values):
+        display.text(f"{name}: {value:5}", 0, y_offset, 1)
+        y_offset += 8  # Move to the next line
+
+    display.show()  # Update the display
+    print("Color readings displayed on OLED.")
+
+def adjust_settings(sensor):
+    # Thresholds for ADC values
+    SATURATION_THRESHOLD = 59000  # 90% of 65535
+    LOW_THRESHOLD = 1000         # Signal too weak
+
+    # Read the current gain
+    gain = sensor.gain
+
+    # Read channel values
+    channel_values = [
+        sensor.channel_680nm,
+        sensor.channel_630nm,
+        sensor.channel_590nm,
+        sensor.channel_555nm,
+        sensor.channel_515nm,
+        sensor.channel_480nm,
+        sensor.channel_445nm,
+        sensor.channel_415nm,
+    ]
+    max_value = max(channel_values)
+
+    # Get the list of gain values
+    gain_values = list(ACCEPTABLE_GAINS.values())
+    current_index = gain_values.index(gain)
+
+    # Adjust for saturation
+    if max_value > SATURATION_THRESHOLD and current_index > 0:
+        gain = gain_values[current_index - 1]  # Decrease gain
+
+    # Adjust for low signal
+    elif max_value < LOW_THRESHOLD and current_index < len(gain_values) - 1:
+        gain = gain_values[current_index + 1]  # Increase gain
+
+    # Apply adjustments
+    sensor.gain = gain
+
+    # Report adjustments
+    report = f"Adjusted settings: Gain={GAIN_MAP.get(gain, 'Unknown')}"
+    display_on_oled(report)
+    print(report)
+
+    return gain
+
+
+
+
+# Function to handle terminal interaction
+def terminal_interaction():
+    while True:
+        try:
+            # Prompt user for input
+            user_input = input("Enter command: ").strip()
+
+            if user_input == "gain":
+                # Retrieve the gain from the AS7341
+                gain_enum = sensor.gain
+                gain_name = GAIN_MAP.get(gain_enum, "Unknown")
+                response = f"Gain: {gain_name}"
+                display_on_oled(response)
+                print(response)
+
+            elif user_input.startswith("set gain "):
+                try:
+                    # Extract the gain name
+                    parts = user_input.split()
+                    if len(parts) != 3:
+                        raise ValueError("Invalid command format.")
+                    gain_name = parts[2]
+
+                    # Validate and set the gain
+                    if gain_name in ACCEPTABLE_GAINS:
+                        sensor.gain = ACCEPTABLE_GAINS[gain_name]
+                        response = f"Gain set to: {gain_name}"
+                        display_on_oled(response)
+                    else:
+                        # Sort the acceptable values for display
+                        sorted_gains = ', '.join(sorted(ACCEPTABLE_GAINS.keys(), key=lambda x: float(x)))
+                        response = "Gain out of range.\n" + f"Acceptable values: {sorted_gains}"
+                        display_on_oled("Gain out of range.\nCheck values.")
+                    print(response)
+
+                except ValueError:
+                    print("Invalid gain value. Use 'set gain <value>'.")
+
+            elif user_input == "adjust":
+                # Dynamically adjust settings and display results
+                adjust_settings(sensor)
+
+            elif user_input == "read colors":
+                # Display color channel readings
+                display_color_readings(sensor)
+
+            elif user_input == "exit":
+                print("Exiting interaction.")
+                break
+
+            else:
+                print("Invalid command. Use 'gain', 'set gain <value>', 'adjust', 'read colors', or 'exit'.")
+
+        except KeyboardInterrupt:
+            print("Exiting interaction.")
+            break
+        except Exception as e:
+            print(f"Error: {e}")
+            break
+
+# Main loop
+if __name__ == "__main__":
+    terminal_interaction()
