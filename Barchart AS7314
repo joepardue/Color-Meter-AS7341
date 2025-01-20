@@ -1,4 +1,4 @@
-#import board
+import board
 import socketpool
 import wifi
 import adafruit_as7341
