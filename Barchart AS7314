@@ -138,7 +138,7 @@ HTML_PAGE = """
         });
 
         // Fetch data every 5 seconds
-        setInterval(fetchData, 500);
+        setInterval(fetchData, 5000);
         fetchData(); // Initial fetch
     </script>
 </body>
@@ -168,7 +168,7 @@ def serve_data(request: Request):
 
 # Start the server
 server.start(str(wifi.radio.ipv4_address))
-print("Server running...")
+print(f"Server running at http://{wifi.radio.ipv4_address}:5000")
 
 while True:
     try:
@@ -176,4 +176,5 @@ while True:
     except Exception as e:
         print(f"Error: {e}")
         continue
+
 
