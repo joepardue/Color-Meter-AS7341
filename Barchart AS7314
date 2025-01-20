@@ -1,7 +1,4 @@
-# Barchart AS7341
-# Joe Pardue 1/20/25
-
-import board
+#import board
 import socketpool
 import wifi
 import adafruit_as7341
@@ -61,7 +58,7 @@ HTML_PAGE = """
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Intensity',
+                    label: 'Intensity', // Used only for tooltips
                     data: Array(8).fill(0), // Initialize with 0
                     backgroundColor: barColors,
                     borderColor: barColors,
@@ -71,6 +68,9 @@ HTML_PAGE = """
             options: {
                 responsive: true,
                 plugins: {
+                    legend: {
+                        display: false // Disable legend
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
