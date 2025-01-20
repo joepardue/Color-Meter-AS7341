@@ -1,0 +1,153 @@
+# Barchart AS7341
+# Joe Pardue 1/20/25
+
+import board
+import socketpool
+import wifi
+import adafruit_as7341
+from secrets import secrets
+from adafruit_httpserver import Server, Request, Response, GET
+import json
+
+# Wi-Fi Connection
+print("Connecting to Wi-Fi...")
+wifi.radio.connect(secrets["ssid"], secrets["password"])
+print(f"Connected to {secrets['ssid']}")
+print(f"IP Address: {wifi.radio.ipv4_address}")
+
+# Initialize I2C and AS7341 sensor using STEMMA
+i2c = board.STEMMA_I2C()
+as7341 = adafruit_as7341.AS7341(i2c)
+
+# Set up HTTP server
+pool = socketpool.SocketPool(wifi.radio)
+server = Server(pool, debug=True)
+
+# HTML content
+HTML_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AS7341 Color Bar Chart</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <h1 class="text-center">AS7341 Color Bar Chart</h1>
+        <canvas id="colorBarChart" width="400" height="200"></canvas>
+    </div>
+
+    <script>
+        const colors = [
+            { name: "Deep Violet", wavelength: "415 nm", color: "#8A2BE2" },
+            { name: "Violet", wavelength: "445 nm", color: "#7B68EE" },
+            { name: "Blue", wavelength: "480 nm", color: "#0000FF" },
+            { name: "Blue-Green", wavelength: "515 nm", color: "#00CED1" },
+            { name: "Green", wavelength: "555 nm", color: "#00FF00" },
+            { name: "Yellow", wavelength: "590 nm", color: "#FFFF00" },
+            { name: "Orange-Red", wavelength: "630 nm", color: "#FF4500" },
+            { name: "Red", wavelength: "680 nm", color: "#FF0000" },
+        ];
+
+        const labels = colors.map(c => `${c.name} (${c.wavelength})`);
+        const barColors = colors.map(c => c.color);
+
+        const ctx = document.getElementById('colorBarChart').getContext('2d');
+        const colorBarChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Intensity',
+                    data: Array(8).fill(0), // Initialize with 0
+                    backgroundColor: barColors,
+                    borderColor: barColors,
+                    borderWidth: 1,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Value: ${context.raw}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 65535,
+                        title: {
+                            display: true,
+                            text: 'Intensity (0 - 65535)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Colors'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Function to fetch data and update the chart
+        async function fetchData() {
+            try {
+                const response = await fetch('/data');
+                const data = await response.json();
+
+                // Update the chart data
+                colorBarChart.data.datasets[0].data = data;
+                colorBarChart.update();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Fetch data every 5 seconds
+        setInterval(fetchData, 5000);
+        fetchData(); // Initial fetch
+    </script>
+</body>
+</html>
+"""
+
+@server.route("/", GET)
+def serve_html(request: Request):
+    """Serve the main HTML page."""
+    return Response(request, body=HTML_PAGE, content_type="text/html")
+
+@server.route("/data", GET)
+def serve_data(request: Request):
+    """Serve AS7341 sensor data."""
+    # Read the 8 spectral channel values
+    color_values = [
+        as7341.channel_415nm,
+        as7341.channel_445nm,
+        as7341.channel_480nm,
+        as7341.channel_515nm,
+        as7341.channel_555nm,
+        as7341.channel_590nm,
+        as7341.channel_630nm,
+        as7341.channel_680nm,
+    ]
+    return Response(request, body=json.dumps(color_values), content_type="application/json")
+
+# Start the server
+server.start(str(wifi.radio.ipv4_address))
+print("Server running...")
+
+while True:
+    try:
+        server.poll()
+    except Exception as e:
+        print(f"Error: {e}")
+        continue
